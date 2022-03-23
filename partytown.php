@@ -130,4 +130,9 @@ function partytown_worker_scripts() {
 
 add_action( 'wp_print_scripts', __NAMESPACE__ . '\partytown_worker_scripts' );
 
-require_once __DIR__ . '/includes/php/options-partytown.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/php/options-partytown.php';
+
+// require examples.
+// require_once plugin_dir_path( __FILE__ ) . 'examples/counter.php';
+// require_once plugin_dir_path( __FILE__ ) . 'examples/get-request.php';
+// require_once plugin_dir_path( __FILE__ ) . 'examples/post-request.php';
