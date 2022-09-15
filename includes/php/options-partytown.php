@@ -101,11 +101,11 @@ function partytown_settings_section_callback() {
  * @return void
  */
 function partytown_enable_callback() {
-	$options = get_option( 'partytown' );
-	$checked = ( isset( $options['enable'] ) && 'on' === $options['enable'] ) ? 'checked' : '';
+	$options = get_option( 'partytown', 'on' );
+	$checked = ( isset( $options ) && 'on' === $options ) ? 'checked' : '';
 	?>
 	<label>
-		<input type="checkbox" name="partytown[enable]" <?php echo esc_attr( $checked ); ?> />
+		<input type="checkbox" name="partytown" <?php echo esc_attr( $checked ); ?> />
 		<?php esc_html_e( 'Enable PartyTown', 'partytown' ); ?>
 	</label>
 	<?php
