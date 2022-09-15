@@ -1,8 +1,12 @@
 {
   "scripts": {
-    "partytown": "partytown copylib includes/js/partytown"
+    "partytown": "partytown copylib includes/js/partytown",
+    "wp-env": "wp-env"
   },
   "dependencies": {
     "@builder.io/partytown": "^0.7.0"
+  },
+  "devDependencies": {
+    "@wordpress/env": "^5.2.0"
   }
 }
