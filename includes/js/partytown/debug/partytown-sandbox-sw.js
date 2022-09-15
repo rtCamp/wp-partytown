@@ -1,11 +1,21 @@
-/* Partytown 0.5.0 - MIT builder.io */
+/* Partytown 0.7.0 - MIT builder.io */
 (window => {
     const isPromise = v => "object" == typeof v && v && v.then;
     const noop = () => {};
     const len = obj => obj.length;
     const getConstructorName = obj => {
+        var _a, _b, _c;
         try {
-            return obj.constructor.name;
+            const constructorName = null === (_a = null == obj ? void 0 : obj.constructor) || void 0 === _a ? void 0 : _a.name;
+            if (constructorName) {
+                return constructorName;
+            }
+        } catch (e) {}
+        try {
+            const zoneJsConstructorName = null === (_c = null === (_b = null == obj ? void 0 : obj.__zone_symbol__originalInstance) || void 0 === _b ? void 0 : _b.constructor) || void 0 === _c ? void 0 : _c.name;
+            if (zoneJsConstructorName) {
+                return zoneJsConstructorName;
+            }
         } catch (e) {}
         return "";
     };
@@ -89,7 +99,7 @@
     };
     let lastCleanup = 0;
     const mainWindow = window.parent;
-    const doc = document;
+    const docImpl = document.implementation.createHTMLDocument();
     const config = mainWindow.partytown || {};
     const libPath = (config.lib || "/~partytown/") + "debug/";
     const logMain = msg => {
@@ -104,12 +114,16 @@
         const Cstr = defineConstructorName(class extends winCtxs[winId].$window$.HTMLElement {}, ceData[0]);
         const ceCallbackMethods = "connectedCallback,disconnectedCallback,attributeChangedCallback,adoptedCallback".split(",");
         ceCallbackMethods.map((callbackMethodName => Cstr.prototype[callbackMethodName] = function(...args) {
-            worker.postMessage([ 13, winId, getAndSetInstanceId(this), callbackMethodName, args ]);
+            worker.postMessage([ 15, winId, getAndSetInstanceId(this), callbackMethodName, args ]);
         }));
         Cstr.observedAttributes = ceData[1];
         return Cstr;
     };
-    const serializeForWorker = ($winId$, value, added, type, cstrName) => void 0 !== value && (type = typeof value) ? "string" === type || "number" === type || "boolean" === type || null == value ? [ 0, value ] : "function" === type ? [ 6 ] : (added = added || new Set) && Array.isArray(value) ? added.has(value) ? [ 1, [] ] : added.add(value) && [ 1, value.map((v => serializeForWorker($winId$, v, added))) ] : "object" === type ? "" === (cstrName = getConstructorName(value)) ? [ 2, {} ] : "Window" === cstrName ? [ 3, [ $winId$, $winId$ ] ] : "HTMLCollection" === cstrName || "NodeList" === cstrName ? [ 7, Array.from(value).map((v => serializeForWorker($winId$, v, added)[1])) ] : cstrName.endsWith("Event") ? [ 5, serializeObjectForWorker($winId$, value, added) ] : "CSSRuleList" === cstrName ? [ 12, Array.from(value).map(serializeCssRuleForWorker) ] : startsWith(cstrName, "CSS") && cstrName.endsWith("Rule") ? [ 11, serializeCssRuleForWorker(value) ] : "CSSStyleDeclaration" === cstrName ? [ 13, serializeObjectForWorker($winId$, value, added) ] : "Attr" === cstrName ? [ 10, [ value.name, value.value ] ] : value.nodeType ? [ 3, [ $winId$, getAndSetInstanceId(value), getNodeName(value) ] ] : [ 2, serializeObjectForWorker($winId$, value, added, true, true) ] : void 0 : value;
+    const serializeForWorker = ($winId$, value, added, type, cstrName) => void 0 !== value && (type = typeof value) ? "string" === type || "number" === type || "boolean" === type || null == value ? [ 0, value ] : "function" === type ? [ 6 ] : (added = added || new Set) && Array.isArray(value) ? added.has(value) ? [ 1, [] ] : added.add(value) && [ 1, value.map((v => serializeForWorker($winId$, v, added))) ] : "object" === type ? serializedValueIsError(value) ? [ 14, {
+        name: value.name,
+        message: value.message,
+        stack: value.stack
+    } ] : "" === (cstrName = getConstructorName(value)) ? [ 2, {} ] : "Window" === cstrName ? [ 3, [ $winId$, $winId$ ] ] : "HTMLCollection" === cstrName || "NodeList" === cstrName ? [ 7, Array.from(value).map((v => serializeForWorker($winId$, v, added)[1])) ] : cstrName.endsWith("Event") ? [ 5, serializeObjectForWorker($winId$, value, added) ] : "CSSRuleList" === cstrName ? [ 12, Array.from(value).map(serializeCssRuleForWorker) ] : startsWith(cstrName, "CSS") && cstrName.endsWith("Rule") ? [ 11, serializeCssRuleForWorker(value) ] : "CSSStyleDeclaration" === cstrName ? [ 13, serializeObjectForWorker($winId$, value, added) ] : "Attr" === cstrName ? [ 10, [ value.name, value.value ] ] : value.nodeType ? [ 3, [ $winId$, getAndSetInstanceId(value), getNodeName(value) ] ] : [ 2, serializeObjectForWorker($winId$, value, added, true, true) ] : void 0 : value;
     const serializeObjectForWorker = (winId, obj, added, includeFunctions, includeEmptyStrings, serializedObj, propName, propValue) => {
         serializedObj = {};
         if (!added.has(obj)) {
@@ -131,6 +145,7 @@
         }
         return obj;
     };
+    const serializedValueIsError = value => value instanceof window.top.Error;
     const deserializeFromWorker = (worker, serializedTransfer, serializedType, serializedValue) => {
         if (serializedTransfer) {
             serializedType = serializedTransfer[0];
@@ -142,7 +157,7 @@
         ref = mainRefs.get($refId$);
         if (!ref) {
             ref = function(...args) {
-                worker.postMessage([ 7, {
+                worker.postMessage([ 9, {
                     $winId$: $winId$,
                     $instanceId$: $instanceId$,
                     $refId$: $refId$,
@@ -268,7 +283,7 @@
             const doc = $window$.document;
             const history = $window$.history;
             const $parentWinId$ = windowIds.get($window$.parent);
-            const sendInitEnvData = () => worker.postMessage([ 3, {
+            const sendInitEnvData = () => worker.postMessage([ 5, {
                 $winId$: $winId$,
                 $parentWinId$: $parentWinId$,
                 $url$: doc.baseURI,
@@ -276,18 +291,33 @@
             } ]);
             const pushState = history.pushState.bind(history);
             const replaceState = history.replaceState.bind(history);
-            const onLocationChange = () => setTimeout((() => worker.postMessage([ 11, $winId$, doc.baseURI ])));
-            history.pushState = (data, _, url) => {
-                pushState(data, _, url);
-                onLocationChange();
+            const onLocationChange = (type, state, newUrl, oldUrl) => {
+                setTimeout((() => {
+                    worker.postMessage([ 13, {
+                        $winId$: $winId$,
+                        type: type,
+                        state: state,
+                        url: doc.baseURI,
+                        newUrl: newUrl,
+                        oldUrl: oldUrl
+                    } ]);
+                }));
             };
-            history.replaceState = (data, _, url) => {
-                replaceState(data, _, url);
-                onLocationChange();
+            history.pushState = (state, _, newUrl) => {
+                pushState(state, _, newUrl);
+                onLocationChange(0, state, null == newUrl ? void 0 : newUrl.toString());
             };
-            $window$.addEventListener("popstate", onLocationChange);
-            $window$.addEventListener("hashchange", onLocationChange);
-            doc.addEventListener("visibilitychange", (() => worker.postMessage([ 12, $winId$, doc.visibilityState ])));
+            history.replaceState = (state, _, newUrl) => {
+                replaceState(state, _, newUrl);
+                onLocationChange(1, state, null == newUrl ? void 0 : newUrl.toString());
+            };
+            $window$.addEventListener("popstate", (event => {
+                onLocationChange(2, event.state);
+            }));
+            $window$.addEventListener("hashchange", (event => {
+                onLocationChange(3, {}, event.newURL, event.oldURL);
+            }));
+            doc.addEventListener("visibilitychange", (() => worker.postMessage([ 14, $winId$, doc.visibilityState ])));
             winCtxs[$winId$] = {
                 $winId$: $winId$,
                 $window$: $window$
@@ -323,7 +353,7 @@
                 } else {
                     scriptData.$content$ = scriptElm.innerHTML;
                 }
-                worker.postMessage([ 5, scriptData ]);
+                worker.postMessage([ 7, scriptData ]);
             } else {
                 if (!winCtx.$isInitialized$) {
                     winCtx.$isInitialized$ = 1;
@@ -332,7 +362,7 @@
                         let forwards = (win.partytown || {}).forward || [];
                         let i;
                         let mainForwardFn;
-                        let forwardCall = ($forward$, args) => worker.postMessage([ 8, {
+                        let forwardCall = ($forward$, args) => worker.postMessage([ 10, {
                             $winId$: $winId$,
                             $forward$: $forward$,
                             $args$: serializeForWorker($winId$, Array.from(args))
@@ -356,18 +386,18 @@
                         logMain(`Executed ${winType} window ${normalizedWinId($winId$)} environment scripts in ${(performance.now() - winCtx.$startTime$).toFixed(1)}ms`);
                     }
                 }
-                worker.postMessage([ 6, $winId$ ]);
+                worker.postMessage([ 8, $winId$ ]);
             }
         } else {
             requestAnimationFrame((() => readNextScript(worker, winCtx)));
         }
     };
     const onMessageFromWebWorker = (worker, msg, winCtx) => {
-        if (2 === msg[0]) {
+        if (4 === msg[0]) {
             registerWindow(worker, randomId(), mainWindow);
         } else {
             winCtx = winCtxs[msg[1]];
-            winCtx && (5 === msg[0] ? requestAnimationFrame((() => readNextScript(worker, winCtx))) : 4 === msg[0] && ((worker, winCtx, instanceId, errorMsg, scriptElm) => {
+            winCtx && (7 === msg[0] ? requestAnimationFrame((() => readNextScript(worker, winCtx))) : 6 === msg[0] && ((worker, winCtx, instanceId, errorMsg, scriptElm) => {
                 scriptElm = winCtx.$window$.document.querySelector(`[data-ptid="${instanceId}"]`);
                 if (scriptElm) {
                     errorMsg ? scriptElm.dataset.pterror = errorMsg : scriptElm.type += "-x";
@@ -378,8 +408,6 @@
         }
     };
     const readMainPlatform = () => {
-        const startTime = performance.now();
-        const docImpl = doc.implementation.createHTMLDocument();
         const elm = docImpl.createElement("i");
         const textNode = docImpl.createTextNode("");
         const comment = docImpl.createComment("");
@@ -392,21 +420,8 @@
         const resizeObserver = getGlobalConstructor(mainWindow, "ResizeObserver");
         const perf = mainWindow.performance;
         const screen = mainWindow.screen;
-        const elms = Object.getOwnPropertyNames(mainWindow).map((interfaceName => ((doc, interfaceName, r, tag) => {
-            r = interfaceName.match(/^(HTML|SVG)(.+)Element$/);
-            if (r) {
-                tag = r[2];
-                return "S" == interfaceName[0] ? doc.createElementNS("http://www.w3.org/2000/svg", svgConstructorTags[tag] || tag.slice(0, 2).toLowerCase() + tag.slice(2)) : doc.createElement(htmlConstructorTags[tag] || tag);
-            }
-        })(docImpl, interfaceName))).filter((elm => elm)).map((elm => [ elm ]));
-        const impls = [ [ mainWindow.history ], [ perf ], [ perf.navigation ], [ perf.timing ], [ screen ], [ screen.orientation ], [ mainWindow.visualViewport ], [ intersectionObserver, 12 ], [ mutationObserver, 12 ], [ resizeObserver, 12 ], [ textNode ], [ comment ], [ frag ], [ shadowRoot ], [ elm ], [ elm.attributes ], [ elm.classList ], [ elm.dataset ], [ elm.style ], [ docImpl ], [ docImpl.doctype ], ...elms ].filter((implData => implData[0])).map((implData => {
-            const impl = implData[0];
-            const interfaceType = implData[1];
-            const cstrName = getConstructorName(impl);
-            const CstrPrototype = mainWindow[cstrName].prototype;
-            return [ cstrName, CstrPrototype, impl, interfaceType ];
-        }));
-        const $interfaces$ = [ readImplementation("Window", mainWindow), readImplementation("Node", textNode) ];
+        const impls = [ [ mainWindow.history ], [ perf ], [ perf.navigation ], [ perf.timing ], [ screen ], [ screen.orientation ], [ mainWindow.visualViewport ], [ intersectionObserver, 12 ], [ mutationObserver, 12 ], [ resizeObserver, 12 ], [ textNode ], [ comment ], [ frag ], [ shadowRoot ], [ elm ], [ elm.attributes ], [ elm.classList ], [ elm.dataset ], [ elm.style ], [ docImpl ], [ docImpl.doctype ] ];
+        const initialInterfaces = [ readImplementation("Window", mainWindow), readImplementation("Node", textNode) ];
         const $config$ = JSON.stringify(config, ((k, v) => {
             if ("function" == typeof v) {
                 v = String(v);
@@ -416,16 +431,36 @@
         }));
         const initWebWorkerData = {
             $config$: $config$,
+            $interfaces$: readImplementations(impls, initialInterfaces),
             $libPath$: new URL(libPath, mainWindow.location) + "",
-            $interfaces$: $interfaces$,
             $origin$: origin,
             $localStorage$: readStorage("localStorage"),
             $sessionStorage$: readStorage("sessionStorage")
         };
-        impls.map((([cstrName, CstrPrototype, impl, intefaceType]) => readOwnImplementation($interfaces$, cstrName, CstrPrototype, impl, intefaceType)));
-        addGlobalConstructorUsingPrototype($interfaces$, mainWindow, "IntersectionObserverEntry");
-        logMain(`Read ${$interfaces$.length} interfaces in ${(performance.now() - startTime).toFixed(1)}ms`);
+        addGlobalConstructorUsingPrototype(initWebWorkerData.$interfaces$, mainWindow, "IntersectionObserverEntry");
         return initWebWorkerData;
+    };
+    const readMainInterfaces = () => {
+        const elms = Object.getOwnPropertyNames(mainWindow).map((interfaceName => ((doc, interfaceName, r, tag) => {
+            r = interfaceName.match(/^(HTML|SVG)(.+)Element$/);
+            if (r) {
+                tag = r[2];
+                return "S" == interfaceName[0] ? doc.createElementNS("http://www.w3.org/2000/svg", svgConstructorTags[tag] || tag.slice(0, 2).toLowerCase() + tag.slice(2)) : doc.createElement(htmlConstructorTags[tag] || tag);
+            }
+        })(docImpl, interfaceName))).filter((elm => elm)).map((elm => [ elm ]));
+        return readImplementations(elms, []);
+    };
+    const cstrs = new Set([ "Object" ]);
+    const readImplementations = (impls, interfaces) => {
+        const cstrImpls = impls.filter((implData => implData[0])).map((implData => {
+            const impl = implData[0];
+            const interfaceType = implData[1];
+            const cstrName = getConstructorName(impl);
+            const CstrPrototype = mainWindow[cstrName].prototype;
+            return [ cstrName, CstrPrototype, impl, interfaceType ];
+        }));
+        cstrImpls.map((([cstrName, CstrPrototype, impl, intefaceType]) => readOwnImplementation(cstrs, interfaces, cstrName, CstrPrototype, impl, intefaceType)));
+        return interfaces;
     };
     const readImplementation = (cstrName, impl, memberName) => {
         let interfaceMembers = [];
@@ -435,13 +470,17 @@
         }
         return interfaceInfo;
     };
-    const readOwnImplementation = (interfaces, cstrName, CstrPrototype, impl, interfaceType) => {
-        if ("Object" !== cstrName && !interfaces.some((i => i[0] === cstrName))) {
+    const readOwnImplementation = (cstrs, interfaces, cstrName, CstrPrototype, impl, interfaceType) => {
+        if (!cstrs.has(cstrName)) {
+            cstrs.add(cstrName);
             const SuperCstr = Object.getPrototypeOf(CstrPrototype);
             const superCstrName = getConstructorName(SuperCstr);
             const interfaceMembers = [];
-            readOwnImplementation(interfaces, superCstrName, SuperCstr, impl, interfaceType);
-            Object.keys(Object.getOwnPropertyDescriptors(CstrPrototype)).map((memberName => readImplementationMember(interfaceMembers, impl, memberName)));
+            const propDescriptors = Object.getOwnPropertyDescriptors(CstrPrototype);
+            readOwnImplementation(cstrs, interfaces, superCstrName, SuperCstr, impl, interfaceType);
+            for (const memberName in propDescriptors) {
+                readImplementationMember(interfaceMembers, impl, memberName);
+            }
             interfaces.push([ cstrName, superCstrName, interfaceMembers, interfaceType, getNodeName(impl) ]);
         }
     };
@@ -484,19 +523,19 @@
         return swContainer.getRegistration().then((swRegistration => {
             swContainer.addEventListener("message", (ev => receiveMessage(ev.data, (accessRsp => swRegistration.active && swRegistration.active.postMessage(accessRsp)))));
             return (worker, msg) => {
-                0 === msg[0] ? worker.postMessage([ 1, readMainPlatform() ]) : onMessageFromWebWorker(worker, msg);
+                0 === msg[0] ? worker.postMessage([ 1, readMainPlatform() ]) : 2 === msg[0] ? worker.postMessage([ 3, readMainInterfaces() ]) : onMessageFromWebWorker(worker, msg);
             };
         }));
     })(((accessReq, responseCallback) => mainAccessHandler(worker, accessReq).then(responseCallback))).then((onMessageHandler => {
         if (onMessageHandler) {
-            worker = new Worker(libPath + "partytown-ww-sw.js?v=0.5.0", {
+            worker = new Worker(libPath + "partytown-ww-sw.js?v=0.7.0", {
                 name: "Partytown 🎉"
             });
             worker.onmessage = ev => {
                 const msg = ev.data;
-                10 === msg[0] ? mainAccessHandler(worker, msg[1]) : onMessageHandler(worker, msg);
+                12 === msg[0] ? mainAccessHandler(worker, msg[1]) : onMessageHandler(worker, msg);
             };
-            logMain("Created Partytown web worker (0.5.0)");
+            logMain("Created Partytown web worker (0.7.0)");
             worker.onerror = ev => console.error("Web Worker Error", ev);
             mainWindow.addEventListener("pt1", (ev => registerWindow(worker, getAndSetInstanceId(ev.detail.frameElement), ev.detail)));
         }
