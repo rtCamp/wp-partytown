@@ -33,7 +33,7 @@ namespace Partytown;
  */
 function partytown_configuration() {
 	// If partytown is not enabled, return early.
-	if ( ! get_option( 'partytown' ) ) {
+	if ( ! get_option( 'partytown', 'on' ) ) {
 		return;
 	}
 
@@ -67,7 +67,7 @@ add_action( 'wp_head', __NAMESPACE__ . '\partytown_configuration', 1 );
  */
 function partytown_init() {
 	// If user has enabled PartyTown, only then load the script.
-	if ( get_option( 'partytown' ) ) {
+	if ( get_option( 'partytown', 'on' ) ) {
 		wp_enqueue_script(
 			'partytown',
 			plugin_dir_url( __FILE__ ) . 'includes/js/partytown/partytown.js',
@@ -133,6 +133,6 @@ add_action( 'wp_print_scripts', __NAMESPACE__ . '\partytown_worker_scripts' );
 require_once plugin_dir_path( __FILE__ ) . 'includes/php/options-partytown.php';
 
 // require examples.
-// require_once plugin_dir_path( __FILE__ ) . 'examples/counter.php';
-// require_once plugin_dir_path( __FILE__ ) . 'examples/get-request.php';
-// require_once plugin_dir_path( __FILE__ ) . 'examples/post-request.php';
+require_once plugin_dir_path( __FILE__ ) . 'examples/counter.php';
+require_once plugin_dir_path( __FILE__ ) . 'examples/get-request.php';
+require_once plugin_dir_path( __FILE__ ) . 'examples/post-request.php';
