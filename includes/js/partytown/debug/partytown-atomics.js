@@ -1,4 +1,4 @@
-/* Partytown 0.8.0 - MIT builder.io */
+/* Partytown 0.10.1 - MIT builder.io */
 (window => {
     const isPromise = v => "object" == typeof v && v && v.then;
     const noop = () => {};
@@ -47,6 +47,19 @@
         Graphics: "g",
         SVG: "svg"
     };
+    const defaultPartytownForwardPropertySettings = {
+        preserveBehavior: false
+    };
+    const arrayMethods = Object.freeze((obj => {
+        const properties = new Set;
+        let currentObj = obj;
+        do {
+            Object.getOwnPropertyNames(currentObj).forEach((item => {
+                "function" == typeof currentObj[item] && properties.add(item);
+            }));
+        } while ((currentObj = Object.getPrototypeOf(currentObj)) !== Object.prototype);
+        return Array.from(properties);
+    })([]));
     const InstanceIdKey = Symbol();
     const CreatedKey = Symbol();
     const instances = new Map;
@@ -277,16 +290,71 @@
         }
         return instance;
     };
+    const mainForwardTrigger = (worker, $winId$, win) => {
+        let queuedForwardCalls = win._ptf;
+        let forwards = (win.partytown || {}).forward || [];
+        let i;
+        let mainForwardFn;
+        let forwardCall = ($forward$, args) => worker.postMessage([ 10, {
+            $winId$: $winId$,
+            $forward$: $forward$,
+            $args$: serializeForWorker($winId$, Array.from(args))
+        } ]);
+        win._ptf = void 0;
+        forwards.map((forwardProps => {
+            const [property, {preserveBehavior: preserveBehavior}] = (propertyOrPropertyWithSettings => {
+                if ("string" == typeof propertyOrPropertyWithSettings) {
+                    return [ propertyOrPropertyWithSettings, defaultPartytownForwardPropertySettings ];
+                }
+                const [property, settings = defaultPartytownForwardPropertySettings] = propertyOrPropertyWithSettings;
+                return [ property, {
+                    ...defaultPartytownForwardPropertySettings,
+                    ...settings
+                } ];
+            })(forwardProps);
+            mainForwardFn = win;
+            property.split(".").map(((_, i, arr) => {
+                mainForwardFn = mainForwardFn[arr[i]] = i + 1 < len(arr) ? mainForwardFn[arr[i]] || (propertyName => arrayMethods.includes(propertyName) ? [] : {})(arr[i + 1]) : (() => {
+                    let originalFunction = null;
+                    if (preserveBehavior) {
+                        const {methodOrProperty: methodOrProperty, thisObject: thisObject} = ((window, properties) => {
+                            let thisObject = window;
+                            for (let i = 0; i < properties.length - 1; i += 1) {
+                                thisObject = thisObject[properties[i]];
+                            }
+                            return {
+                                thisObject: thisObject,
+                                methodOrProperty: properties.length > 0 ? thisObject[properties[properties.length - 1]] : void 0
+                            };
+                        })(win, arr);
+                        "function" == typeof methodOrProperty && (originalFunction = (...args) => methodOrProperty.apply(thisObject, ...args));
+                    }
+                    return (...args) => {
+                        let returnValue;
+                        originalFunction && (returnValue = originalFunction(args));
+                        forwardCall(arr, args);
+                        return returnValue;
+                    };
+                })();
+            }));
+        }));
+        if (queuedForwardCalls) {
+            for (i = 0; i < len(queuedForwardCalls); i += 2) {
+                forwardCall(queuedForwardCalls[i], queuedForwardCalls[i + 1]);
+            }
+        }
+    };
     const readNextScript = (worker, winCtx) => {
         let $winId$ = winCtx.$winId$;
         let win = winCtx.$window$;
         let doc = win.document;
         let scriptSelector = 'script[type="text/partytown"]:not([data-ptid]):not([data-pterror])';
+        let blockingScriptSelector = scriptSelector + ":not([async]):not([defer])";
         let scriptElm;
         let $instanceId$;
         let scriptData;
         if (doc && doc.body) {
-            scriptElm = doc.querySelector('script[type="text/partytown"]:not([data-ptid]):not([data-pterror]):not([async]):not([defer])');
+            scriptElm = doc.querySelector(blockingScriptSelector);
             scriptElm || (scriptElm = doc.querySelector(scriptSelector));
             if (scriptElm) {
                 scriptElm.dataset.ptid = $instanceId$ = getAndSetInstanceId(scriptElm, $winId$);
@@ -304,29 +372,7 @@
             } else {
                 if (!winCtx.$isInitialized$) {
                     winCtx.$isInitialized$ = 1;
-                    ((worker, $winId$, win) => {
-                        let queuedForwardCalls = win._ptf;
-                        let forwards = (win.partytown || {}).forward || [];
-                        let i;
-                        let mainForwardFn;
-                        let forwardCall = ($forward$, args) => worker.postMessage([ 10, {
-                            $winId$: $winId$,
-                            $forward$: $forward$,
-                            $args$: serializeForWorker($winId$, Array.from(args))
-                        } ]);
-                        win._ptf = void 0;
-                        forwards.map((forwardProps => {
-                            mainForwardFn = win;
-                            forwardProps.split(".").map(((_, i, arr) => {
-                                mainForwardFn = mainForwardFn[arr[i]] = i + 1 < len(arr) ? mainForwardFn[arr[i]] || ("push" === arr[i + 1] ? [] : {}) : (...args) => forwardCall(arr, args);
-                            }));
-                        }));
-                        if (queuedForwardCalls) {
-                            for (i = 0; i < len(queuedForwardCalls); i += 2) {
-                                forwardCall(queuedForwardCalls[i], queuedForwardCalls[i + 1]);
-                            }
-                        }
-                    })(worker, $winId$, win);
+                    mainForwardTrigger(worker, $winId$, win);
                     doc.dispatchEvent(new CustomEvent("pt0"));
                     {
                         const winType = win === win.top ? "top" : "iframe";
@@ -367,16 +413,14 @@
             const pushState = history.pushState.bind(history);
             const replaceState = history.replaceState.bind(history);
             const onLocationChange = (type, state, newUrl, oldUrl) => () => {
-                setTimeout((() => {
-                    worker.postMessage([ 13, {
-                        $winId$: $winId$,
-                        type: type,
-                        state: state,
-                        url: doc.baseURI,
-                        newUrl: newUrl,
-                        oldUrl: oldUrl
-                    } ]);
-                }));
+                worker.postMessage([ 13, {
+                    $winId$: $winId$,
+                    type: type,
+                    state: state,
+                    url: doc.baseURI,
+                    newUrl: newUrl,
+                    oldUrl: oldUrl
+                } ]);
             };
             history.pushState = (state, _, newUrl) => {
                 pushState(state, _, newUrl);
@@ -423,6 +467,41 @@
             })(worker, winCtx, msg[2], msg[3]));
         }
     };
+    const readMainPlatform = () => {
+        const elm = docImpl.createElement("i");
+        const textNode = docImpl.createTextNode("");
+        const comment = docImpl.createComment("");
+        const frag = docImpl.createDocumentFragment();
+        const shadowRoot = docImpl.createElement("p").attachShadow({
+            mode: "open"
+        });
+        const intersectionObserver = getGlobalConstructor(mainWindow, "IntersectionObserver");
+        const mutationObserver = getGlobalConstructor(mainWindow, "MutationObserver");
+        const resizeObserver = getGlobalConstructor(mainWindow, "ResizeObserver");
+        const perf = mainWindow.performance;
+        const screen = mainWindow.screen;
+        const impls = [ [ mainWindow.history ], [ perf ], [ perf.navigation ], [ perf.timing ], [ screen ], [ screen.orientation ], [ mainWindow.visualViewport ], [ intersectionObserver, 12 ], [ mutationObserver, 12 ], [ resizeObserver, 12 ], [ textNode ], [ comment ], [ frag ], [ shadowRoot ], [ elm ], [ elm.attributes ], [ elm.classList ], [ elm.dataset ], [ elm.style ], [ docImpl ], [ docImpl.doctype ] ];
+        const initialInterfaces = [ readImplementation("Window", mainWindow), readImplementation("Node", textNode) ];
+        const $config$ = function(config) {
+            return JSON.stringify(config, ((key, value) => {
+                if ("function" == typeof value) {
+                    value = String(value);
+                    value.startsWith(key + "(") && (value = "function " + value);
+                }
+                "loadScriptsOnMainThread" === key && (value = value.map((scriptUrl => Array.isArray(scriptUrl) ? scriptUrl : [ "string" == typeof scriptUrl ? "string" : "regexp", "string" == typeof scriptUrl ? scriptUrl : scriptUrl.source ])));
+                return value;
+            }));
+        }(config);
+        const initWebWorkerData = {
+            $config$: $config$,
+            $interfaces$: readImplementations(impls, initialInterfaces),
+            $libPath$: new URL(libPath, mainWindow.location) + "",
+            $origin$: origin,
+            $tabId$: mainWindow._pttab
+        };
+        addGlobalConstructorUsingPrototype(initWebWorkerData.$interfaces$, mainWindow, "IntersectionObserverEntry");
+        return initWebWorkerData;
+    };
     const readMainInterfaces = () => {
         const elms = Object.getOwnPropertyNames(mainWindow).map((interfaceName => ((doc, interfaceName, r, tag) => {
             r = interfaceName.match(/^(HTML|SVG)(.+)Element$/);
@@ -433,8 +512,8 @@
         })(docImpl, interfaceName))).filter((elm => elm)).map((elm => [ elm ]));
         return readImplementations(elms, []);
     };
-    const cstrs = new Set([ "Object" ]);
     const readImplementations = (impls, interfaces) => {
+        const cstrs = new Set([ "Object" ]);
         const cstrImpls = impls.filter((implData => implData[0])).map((implData => {
             const impl = implData[0];
             const interfaceType = implData[1];
@@ -476,7 +555,7 @@
                     (String(value).includes("[native") || Object.getPrototypeOf(implementation)[memberName]) && interfaceMembers.push([ memberName, 5 ]);
                 } else if ("object" === memberType && null != value) {
                     cstrName = getConstructorName(value);
-                    "Object" !== cstrName && self[cstrName] && interfaceMembers.push([ memberName, value.nodeType || cstrName ]);
+                    "Object" !== cstrName && "Function" !== cstrName && self[cstrName] && interfaceMembers.push([ memberName, value.nodeType || cstrName ]);
                 } else {
                     "symbol" !== memberType && (memberName.toUpperCase() === memberName ? interfaceMembers.push([ memberName, 6, value ]) : interfaceMembers.push([ memberName, 6 ]));
                 }
@@ -484,17 +563,6 @@
         } catch (e) {
             console.warn(e);
         }
-    };
-    const readStorage = storageName => {
-        let items = [];
-        let i = 0;
-        let l = len(mainWindow[storageName]);
-        let key;
-        for (;i < l; i++) {
-            key = mainWindow[storageName].key(i);
-            items.push([ key, mainWindow[storageName].getItem(key) ]);
-        }
-        return items;
     };
     const getGlobalConstructor = (mainWindow, cstrName) => void 0 !== mainWindow[cstrName] ? new mainWindow[cstrName](noop) : 0;
     const addGlobalConstructorUsingPrototype = ($interfaces$, mainWindow, cstrName) => {
@@ -508,39 +576,7 @@
             const msgType = msg[0];
             const accessReq = msg[1];
             if (0 === msgType) {
-                const initData = (() => {
-                    const elm = docImpl.createElement("i");
-                    const textNode = docImpl.createTextNode("");
-                    const comment = docImpl.createComment("");
-                    const frag = docImpl.createDocumentFragment();
-                    const shadowRoot = docImpl.createElement("p").attachShadow({
-                        mode: "open"
-                    });
-                    const intersectionObserver = getGlobalConstructor(mainWindow, "IntersectionObserver");
-                    const mutationObserver = getGlobalConstructor(mainWindow, "MutationObserver");
-                    const resizeObserver = getGlobalConstructor(mainWindow, "ResizeObserver");
-                    const perf = mainWindow.performance;
-                    const screen = mainWindow.screen;
-                    const impls = [ [ mainWindow.history ], [ perf ], [ perf.navigation ], [ perf.timing ], [ screen ], [ screen.orientation ], [ mainWindow.visualViewport ], [ intersectionObserver, 12 ], [ mutationObserver, 12 ], [ resizeObserver, 12 ], [ textNode ], [ comment ], [ frag ], [ shadowRoot ], [ elm ], [ elm.attributes ], [ elm.classList ], [ elm.dataset ], [ elm.style ], [ docImpl ], [ docImpl.doctype ] ];
-                    const initialInterfaces = [ readImplementation("Window", mainWindow), readImplementation("Node", textNode) ];
-                    const $config$ = JSON.stringify(config, ((k, v) => {
-                        if ("function" == typeof v) {
-                            v = String(v);
-                            v.startsWith(k + "(") && (v = "function " + v);
-                        }
-                        return v;
-                    }));
-                    const initWebWorkerData = {
-                        $config$: $config$,
-                        $interfaces$: readImplementations(impls, initialInterfaces),
-                        $libPath$: new URL(libPath, mainWindow.location) + "",
-                        $origin$: origin,
-                        $localStorage$: readStorage("localStorage"),
-                        $sessionStorage$: readStorage("sessionStorage")
-                    };
-                    addGlobalConstructorUsingPrototype(initWebWorkerData.$interfaces$, mainWindow, "IntersectionObserverEntry");
-                    return initWebWorkerData;
-                })();
+                const initData = readMainPlatform();
                 initData.$sharedDataBuffer$ = sharedDataBuffer;
                 worker.postMessage([ 1, initData ]);
             } else {
@@ -557,14 +593,14 @@
         };
     })(((accessReq, responseCallback) => mainAccessHandler(worker, accessReq).then(responseCallback))).then((onMessageHandler => {
         if (onMessageHandler) {
-            worker = new Worker(libPath + "partytown-ww-atomics.js?v=0.8.0", {
+            worker = new Worker(libPath + "partytown-ww-atomics.js?v=0.10.1", {
                 name: "Partytown 🎉"
             });
             worker.onmessage = ev => {
                 const msg = ev.data;
                 12 === msg[0] ? mainAccessHandler(worker, msg[1]) : onMessageHandler(worker, msg);
             };
-            logMain("Created Partytown web worker (0.8.0)");
+            logMain("Created Partytown web worker (0.10.1)");
             worker.onerror = ev => console.error("Web Worker Error", ev);
             mainWindow.addEventListener("pt1", (ev => registerWindow(worker, getAndSetInstanceId(ev.detail.frameElement), ev.detail)));
         }

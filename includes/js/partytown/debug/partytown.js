@@ -1,5 +1,31 @@
-/* Partytown 0.8.0 - MIT builder.io */
-!function(win, doc, nav, top, useAtomics, config, libPath, timeout, scripts, sandbox, mainForwardFn, isReady) {
+/* Partytown 0.10.1 - MIT builder.io */
+const defaultPartytownForwardPropertySettings = {
+    preserveBehavior: false
+};
+
+const resolvePartytownForwardProperty = propertyOrPropertyWithSettings => {
+    if ("string" == typeof propertyOrPropertyWithSettings) {
+        return [ propertyOrPropertyWithSettings, defaultPartytownForwardPropertySettings ];
+    }
+    const [property, settings = defaultPartytownForwardPropertySettings] = propertyOrPropertyWithSettings;
+    return [ property, {
+        ...defaultPartytownForwardPropertySettings,
+        ...settings
+    } ];
+};
+
+const arrayMethods = Object.freeze((obj => {
+    const properties = new Set;
+    let currentObj = obj;
+    do {
+        Object.getOwnPropertyNames(currentObj).forEach((item => {
+            "function" == typeof currentObj[item] && properties.add(item);
+        }));
+    } while ((currentObj = Object.getPrototypeOf(currentObj)) !== Object.prototype);
+    return Array.from(properties);
+})([]));
+
+!function(win, doc, nav, top, useAtomics, config, libPath, timeout, scripts, sandbox, mainForwardFn = win, isReady) {
     function ready() {
         if (!isReady) {
             isReady = 1;
@@ -34,22 +60,29 @@
     }
     function loadSandbox(isAtomics) {
         sandbox = doc.createElement(isAtomics ? "script" : "iframe");
+        win._pttab = Date.now();
         if (!isAtomics) {
-            sandbox.setAttribute("style", "display:block;width:0;height:0;border:0;visibility:hidden");
+            sandbox.style.display = "block";
+            sandbox.style.width = "0";
+            sandbox.style.height = "0";
+            sandbox.style.border = "0";
+            sandbox.style.visibility = "hidden";
             sandbox.setAttribute("aria-hidden", !0);
         }
-        sandbox.src = libPath + "partytown-" + (isAtomics ? "atomics.js?v=0.8.0" : "sandbox-sw.html?" + Date.now());
+        sandbox.src = libPath + "partytown-" + (isAtomics ? "atomics.js?v=0.10.1" : "sandbox-sw.html?" + win._pttab);
         doc.querySelector(config.sandboxParent || "body").appendChild(sandbox);
     }
     function fallback(i, script) {
         console.warn("Partytown script fallback");
         clearFallback();
         top == win && (config.forward || []).map((function(forwardProps) {
-            delete win[forwardProps.split(".")[0]];
+            const [property] = resolvePartytownForwardProperty(forwardProps);
+            delete win[property.split(".")[0]];
         }));
         for (i = 0; i < scripts.length; i++) {
             script = doc.createElement("script");
             script.innerHTML = scripts[i].innerHTML;
+            script.nonce = config.nonce;
             doc.head.appendChild(script);
         }
         sandbox && sandbox.parentNode.removeChild(sandbox);
@@ -59,11 +92,31 @@
     }
     config = win.partytown || {};
     top == win && (config.forward || []).map((function(forwardProps) {
+        const [property, {preserveBehavior: preserveBehavior}] = resolvePartytownForwardProperty(forwardProps);
         mainForwardFn = win;
-        forwardProps.split(".").map((function(_, i, forwardPropsArr) {
-            mainForwardFn = mainForwardFn[forwardPropsArr[i]] = i + 1 < forwardPropsArr.length ? "push" == forwardPropsArr[i + 1] ? [] : mainForwardFn[forwardPropsArr[i]] || {} : function() {
-                (win._ptf = win._ptf || []).push(forwardPropsArr, arguments);
-            };
+        property.split(".").map((function(_, i, forwardPropsArr) {
+            mainForwardFn = mainForwardFn[forwardPropsArr[i]] = i + 1 < forwardPropsArr.length ? mainForwardFn[forwardPropsArr[i]] || (propertyName => arrayMethods.includes(propertyName) ? [] : {})(forwardPropsArr[i + 1]) : (() => {
+                let originalFunction = null;
+                if (preserveBehavior) {
+                    const {methodOrProperty: methodOrProperty, thisObject: thisObject} = ((window, properties) => {
+                        let thisObject = window;
+                        for (let i = 0; i < properties.length - 1; i += 1) {
+                            thisObject = thisObject[properties[i]];
+                        }
+                        return {
+                            thisObject: thisObject,
+                            methodOrProperty: properties.length > 0 ? thisObject[properties[properties.length - 1]] : void 0
+                        };
+                    })(win, forwardPropsArr);
+                    "function" == typeof methodOrProperty && (originalFunction = (...args) => methodOrProperty.apply(thisObject, ...args));
+                }
+                return function() {
+                    let returnValue;
+                    originalFunction && (returnValue = originalFunction(arguments));
+                    (win._ptf = win._ptf || []).push(forwardPropsArr, arguments);
+                    return returnValue;
+                };
+            })();
         }));
     }));
     if ("complete" == doc.readyState) {
