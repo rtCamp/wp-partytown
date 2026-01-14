@@ -4,7 +4,7 @@
     "wp-env": "wp-env"
   },
   "dependencies": {
-    "@builder.io/partytown": "^0.8.0"
+    "@builder.io/partytown": "^0.10.3"
   },
   "devDependencies": {
     "@wordpress/env": "^10.37.0"
